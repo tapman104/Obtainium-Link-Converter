@@ -1,0 +1,1169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#101114">
+<title>Obtainium Link Converter</title>
+<style>
+:root{color-scheme:dark;--bg:#101114;--panel:#191b20;--line:#30333b;--text:#f3f4f6;--muted:#a5a9b3;--accent:#9b8cff;--accent2:#b4a8ff}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:28px 16px}
+main{max-width:720px;margin:0 auto}
+header{margin-bottom:24px}
+h1{font-size:clamp(1.7rem,5vw,2.3rem);line-height:1.15;margin:0 0 8px}
+p{color:var(--muted);margin:0}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:22px;margin:16px 0}
+label{display:block;font-weight:650;margin:15px 0 6px}
+input{width:100%;padding:13px 14px;border:1px solid var(--line);border-radius:10px;background:#101216;color:var(--text);font:inherit;outline:none}
+input:focus{border-color:var(--accent)}
+.hint{font-size:.85rem;color:var(--muted);margin-top:5px}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+button,.open{border:0;border-radius:10px;padding:12px 16px;font:650  .95rem system-ui;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+.primary{background:var(--accent);color:#15121f}
+.secondary{background:#2a2d35;color:var(--text);border:1px solid var(--line)}
+button:active{transform:translateY(1px)}
+button:disabled{opacity:.55;cursor:progress}
+.result{margin-top:18px;display:none}
+.result.show{display:block}
+.result h2{font-size:1.05rem;margin:0 0 8px}
+.output{width:100%;min-height:86px;resize:vertical;padding:12px;border:1px solid var(--line);border-radius:10px;background:#0c0d10;color:#d9d5ff;font:13px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere}
+.status{min-height:1.4em;color:var(--accent2);font-size:.9rem;margin-top:8px}
+footer{font-size:.85rem;color:var(--muted);margin:20px 2px}
+.tabs{display:flex;gap:8px;margin-bottom:4px}
+.tab{flex:1;border:1px solid var(--line);background:#101216;color:var(--muted);border-radius:10px;padding:11px 10px;font:650 .95rem system-ui;cursor:pointer;text-align:center}
+.tab.active{background:var(--accent);color:#15121f;border-color:var(--accent)}
+.source-pane{display:none}
+.source-pane.active{display:block}
+@media(max-width:480px){body{padding:22px 12px}.panel{padding:17px}.actions>*{flex:1}}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>Obtainium Link Converter</h1>
+  <p>Turn a GitHub, IzzyOnDroid, or F-Droid source and app details into a shareable one-tap Obtainium import link.</p>
+</header>
+
+<section class="panel">
+  <form id="converter">
+
+    <label for="anyUrl">Quick paste — any app URL</label>
+    <input id="anyUrl" type="text" autocomplete="off" placeholder="Paste a GitHub, IzzyOnDroid, or F-Droid URL">
+    <div class="hint" id="anyUrlHint">Detects the source automatically, switches to the right tab, and fetches the details.</div>
+
+    <label>App source</label>
+    <div class="tabs" role="tablist">
+      <button type="button" class="tab active" id="tabGithub" role="tab" aria-selected="true">GitHub</button>
+      <button type="button" class="tab" id="tabIzzy" role="tab" aria-selected="false">IzzyOnDroid</button>
+      <button type="button" class="tab" id="tabFdroid" role="tab" aria-selected="false">F-Droid</button>
+    </div>
+
+    <div class="source-pane active" id="paneGithub">
+      <label for="repo">GitHub repository URL</label>
+      <input id="repo" type="url" placeholder="https://github.com/owner/repository">
+      <div class="hint">Use the repository's main GitHub URL.</div>
+
+      <div class="actions" style="margin-top:12px">
+        <button class="secondary" type="button" id="fetchGh">Fetch from GitHub</button>
+      </div>
+      <div class="status" id="fetchStatus" role="status" aria-live="polite"></div>
+
+      <div id="pkgCandidates" style="display:none;margin:12px 0">
+        <label style="margin-bottom:6px">Package ID candidates found</label>
+        <div id="pkgCandidateList" style="display:flex;flex-direction:column;gap:6px"></div>
+      </div>
+    </div>
+
+    <div class="source-pane" id="paneIzzy">
+      <label for="izzyUrl">IzzyOnDroid page URL</label>
+      <input id="izzyUrl" type="url" placeholder="https://apt.izzysoft.de/fdroid/index/apk/com.example.app">
+      <div class="hint" id="izzyHint">Paste the app's IzzyOnDroid page URL. The package ID is extracted from the URL; app name and author are looked up in IzzyOnDroid's public repository metadata.</div>
+
+      <div class="actions" style="margin-top:12px">
+        <button class="secondary" type="button" id="fetchIzzy">Fetch app details</button>
+      </div>
+      <div class="status" id="izzyStatus" role="status" aria-live="polite"></div>
+    </div>
+
+    <div class="source-pane" id="paneFdroid">
+      <label for="fdroidUrl">F-Droid package URL or ID</label>
+      <input id="fdroidUrl" type="text" placeholder="https://f-droid.org/packages/com.example.app/  or  com.example.app">
+      <div class="hint" id="fdroidHint">Paste the app's F-Droid package URL (e.g. https://f-droid.org/packages/com.example.app/) or just its package ID. The app name and author are read from F-Droid's public fdroiddata metadata.</div>
+
+      <div class="actions" style="margin-top:12px">
+        <button class="secondary" type="button" id="fetchFdroid">Fetch app details</button>
+      </div>
+      <div class="status" id="fdroidStatus" role="status" aria-live="polite"></div>
+    </div>
+
+    <label for="appId">Android package ID</label>
+    <input id="appId" type="text" placeholder="com.example.app" required>
+    <div class="hint" id="appIdHint">Find it in Android App info or the app's build configuration. Do not use the app's display name.</div>
+
+    <label for="author">Author</label>
+    <input id="author" type="text" placeholder="Repository owner or distributor" required>
+    <div class="hint" id="authorHint"></div>
+
+    <label for="name">App display name</label>
+    <input id="name" type="text" placeholder="My App" required>
+    <div class="hint" id="nameHint"></div>
+
+    <div class="actions">
+      <button class="primary" type="submit">Generate links</button>
+      <button class="secondary" type="button" id="clear">Clear</button>
+    </div>
+  </form>
+
+  <div class="result" id="result">
+    <div style="margin-top:22px">
+      <h2>Shareable HTTPS link</h2>
+      <textarea class="output" id="httpsOutput" readonly></textarea>
+      <div class="actions">
+        <button class="primary" type="button" id="copyHttps">Copy share link</button>
+        <a class="open secondary" id="openHttps" href="#" target="_blank" rel="noopener">Open link</a>
+      </div>
+    </div>
+    <div style="margin-top:22px">
+      <h2>Obtainium deep link</h2>
+      <textarea class="output" id="deepOutput" readonly></textarea>
+      <div class="actions">
+        <button class="secondary" type="button" id="copyDeep">Copy deep link</button>
+      </div>
+    </div>
+    <div class="status" id="status" role="status" aria-live="polite"></div>
+  </div>
+</section>
+
+<footer>
+  Runs locally in your browser; it does not upload the details you type. GitHub lookups use GitHub's API/raw file host. IzzyOnDroid lookups read the app's YAML file from its public repodata repository (AuthorName and Name/AutoName), without scraping the app page or using a third-party CORS proxy. F-Droid lookups read the app's Name/AutoName and AuthorName from F-Droid's fdroiddata metadata (mirrored on GitHub and GitLab). The generated link only imports a source configuration. Obtainium/Android may still ask you to confirm installation. Check the package ID, APK architecture and signing certificate before updating an existing installation.
+</footer>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+let activeSource = 'github'; // 'github' | 'izzy' | 'fdroid'
+
+/* ---------------- link assembly constants (single source of truth) ---------------- */
+const DEEP_PREFIX   = 'obtainium://app/';
+const REDIRECT_BASE = 'https://apps.obtainium.imranr.dev/redirect?r=';
+
+/* ---------------- abort plumbing ---------------- */
+const groups = { github: null, izzy: null, fdroid: null };
+
+function startGroup(name){
+  const prev = groups[name];
+  if(prev) prev.abort();
+  const g = { aborted: false, controllers: new Set() };
+  g.abort = () => { g.aborted = true; for(const c of g.controllers) c.abort(); g.controllers.clear(); };
+  groups[name] = g;
+  return g;
+}
+function abortAll(){
+  for(const k of Object.keys(groups)){
+    if(groups[k]){ groups[k].abort(); groups[k] = null; }
+  }
+}
+
+async function timedFetch(url, ms = 15000, init, group){
+  if(group && group.aborted) throw new DOMException('Aborted', 'AbortError');
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  if(group) group.controllers.add(ctrl);
+  try {
+    return await fetch(url, Object.assign({}, init, { signal: ctrl.signal }));
+  } finally {
+    clearTimeout(timer);
+    if(group) group.controllers.delete(ctrl);
+  }
+}
+
+/* Run `fn` over `items` with at most `limit` in flight. */
+async function mapPool(items, limit, fn){
+  const results = new Array(items.length);
+  let i = 0;
+  async function worker(){
+    while(true){
+      const idx = i++;
+      if(idx >= items.length) return;
+      results[idx] = await fn(items[idx], idx);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
+/* ---------------- lightweight session cache ---------------- */
+const CACHE_TTL = 10 * 60 * 1000;
+const cacheKey = k => 'olc:' + k;
+
+function cacheGet(key){
+  try {
+    const raw = sessionStorage.getItem(cacheKey(key));
+    if(!raw) return null;
+    const entry = JSON.parse(raw);
+    if(!entry || Date.now() - entry.t > CACHE_TTL){
+      sessionStorage.removeItem(cacheKey(key));
+      return null;
+    }
+    return entry.v;
+  } catch { return null; }
+}
+function cacheSet(key, value){
+  try { sessionStorage.setItem(cacheKey(key), JSON.stringify({ t: Date.now(), v: value })); } catch {}
+}
+
+/* ---------------- source tabs ---------------- */
+const TABS = [
+  { key: 'github', tab: 'tabGithub', pane: 'paneGithub' },
+  { key: 'izzy',   tab: 'tabIzzy',   pane: 'paneIzzy'   },
+  { key: 'fdroid', tab: 'tabFdroid', pane: 'paneFdroid' }
+];
+
+function setActiveSource(src){
+  if(activeSource !== src && groups[activeSource]) groups[activeSource].abort();
+  activeSource = src;
+  for(const t of TABS){
+    const active = t.key === src;
+    $(t.tab).classList.toggle('active', active);
+    $(t.tab).setAttribute('aria-selected', active);
+    $(t.pane).classList.toggle('active', active);
+  }
+  $('author').placeholder = src === 'github' ? 'Repository owner' : 'Distributor or developer name';
+}
+$('tabGithub').addEventListener('click', () => setActiveSource('github'));
+$('tabIzzy').addEventListener('click', () => setActiveSource('izzy'));
+$('tabFdroid').addEventListener('click', () => setActiveSource('fdroid'));
+
+/* ---------------- input parsing ---------------- */
+
+// If someone pastes an already-encoded URL (e.g. "https%3A%2F%2F…"),
+// peel one layer of encoding so it becomes a plain string again.
+function normalizeRawUrl(raw){
+  let s = String(raw || '').trim();
+  if(/^https?%3A/i.test(s) || /^https?%2F/i.test(s)){
+    try { s = decodeURIComponent(s); } catch {}
+  }
+  return s;
+}
+
+function parseRepoInput(raw){
+  let repo;
+  try { repo = new URL(normalizeRawUrl(raw)); } catch { return null; }
+  if(repo.hostname.toLowerCase() !== 'github.com') return null;
+  const parts = repo.pathname.split('/').filter(Boolean);
+  if(parts.length < 2) return null;
+  return { owner: parts[0], repo: parts[1].replace(/\.git$/,'') };
+}
+
+// IzzyOnDroid app page URLs look like:
+// https://apt.izzysoft.de/fdroid/index/apk/{AppID}
+function parseIzzyInput(raw){
+  let url;
+  try { url = new URL(normalizeRawUrl(raw)); } catch { return null; }
+  if(!/(^|\.)izzysoft\.de$/i.test(url.hostname)) return null;
+  const m = url.pathname.match(/\/apk\/([A-Za-z0-9_.]+)\/?$/);
+  if(!m) return null;
+  return { appId: m[1], cleanUrl: `https://apt.izzysoft.de/fdroid/index/apk/${m[1]}` };
+}
+
+// F-Droid accepts either a package URL (with any language prefix, e.g.
+// https://f-droid.org/en/packages/com.example.app/) or a bare package ID.
+const FDROID_ID_RE = /^[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+$/;
+
+function parseFdroidInput(raw){
+  const s = normalizeRawUrl(raw);
+  if(!s) return null;
+
+  // Try as a URL first.
+  try {
+    const url = new URL(s);
+    if(/(^|\.)f-droid\.org$/i.test(url.hostname)){
+      const m = url.pathname.match(/\/packages\/([^/?#]+)\/?$/);
+      if(m && FDROID_ID_RE.test(m[1])){
+        const id = m[1];
+        return { appId: id, cleanUrl: `https://f-droid.org/packages/${id}/` };
+      }
+    }
+    return null; // a URL, but not an F-Droid packages URL
+  } catch { /* not a URL — fall through to bare-ID check */ }
+
+  if(FDROID_ID_RE.test(s)){
+    return { appId: s, cleanUrl: `https://f-droid.org/packages/${s}/` };
+  }
+  return null;
+}
+
+function titleCaseFromSlug(slug){
+  return slug.replace(/[-_]+/g,' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function decodeEntities(s){
+  const named = {amp:'&', lt:'<', gt:'>', quot:'"', apos:"'", nbsp:' '};
+  return String(s).replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (m, code) => {
+    if(code[0] === '#'){
+      const n = code[1].toLowerCase() === 'x' ? parseInt(code.slice(2), 16) : parseInt(code.slice(1), 10);
+      return Number.isFinite(n) ? String.fromCodePoint(n) : m;
+    }
+    const v = named[code.toLowerCase()];
+    return v === undefined ? m : v;
+  });
+}
+
+function firstString(...vals){
+  for(const v of vals){ if(typeof v === 'string' && v.trim()) return v.trim(); }
+  return '';
+}
+
+// Matches applicationId "x.y.z" / namespace "x.y.z" in Gradle,
+// or package="x.y.z" in AndroidManifest.xml
+function extractPackageId(text, filename){
+  if(/AndroidManifest\.xml$/i.test(filename)){
+    const m = text.match(/\bpackage\s*=\s*"([A-Za-z0-9_.]+)"/);
+    return m ? m[1] : null;
+  }
+  const appId = text.match(/applicationId\s*[=(]?\s*["']([A-Za-z0-9_.]+)["']/);
+  if(appId) return appId[1];
+  const ns = text.match(/namespace\s*[=(]?\s*["']([A-Za-z0-9_.]+)["']/);
+  return ns ? ns[1] : null;
+}
+
+/* ---------------- GitHub plumbing ---------------- */
+async function ghJson(url, group){
+  let res;
+  try {
+    res = await timedFetch(url, 15000, { headers: { Accept: 'application/vnd.github+json' } }, group);
+  } catch(err){
+    if(group && group.aborted) throw err;
+    throw new Error('GitHub did not answer in time. Try again, or fill in the fields manually.');
+  }
+
+  if(res.status === 403 || res.status === 429){
+    if(res.headers.get('x-ratelimit-remaining') === '0'){
+      const reset = res.headers.get('x-ratelimit-reset');
+      const when = reset ? new Date(reset * 1000).toLocaleTimeString() : 'later';
+      throw new Error(`GitHub API rate limit reached — try again after ${when}. You can fill in the fields manually for now.`);
+    }
+    throw new Error('GitHub refused the request (rate limit or blocked). Fill in the fields manually for now.');
+  }
+  if(res.status === 404) throw new Error('Repository not found. Check the URL and that it is public.');
+  if(!res.ok) throw new Error(`GitHub API error (${res.status}).`);
+  return res.json();
+}
+
+async function ghRaw(owner, repo, branch, path, group){
+  if(group && group.aborted) return null;
+  const enc = s => s.split('/').map(encodeURIComponent).join('/');
+  try {
+    const res = await timedFetch(`https://raw.githubusercontent.com/${owner}/${repo}/${enc(branch)}/${enc(path)}`, 10000, undefined, group);
+    if(!res.ok) return null;
+    return await res.text();
+  } catch { return null; }
+}
+
+/* Rank build/manifest files so the most likely package-ID sources are read first. */
+function scoreBuildPath(p){
+  const lower = p.toLowerCase();
+  let score;
+  if(/^app\/src\/main\/androidmanifest\.xml$/.test(lower)) score = 100;
+  else if(/^app\/build\.gradle(\.kts)?$/.test(lower)) score = 98;
+  else if(/^[^/]+\/src\/main\/androidmanifest\.xml$/.test(lower)) score = 86;
+  else if(/\/src\/main\/androidmanifest\.xml$/.test(lower)) score = 80;
+  else if(/androidmanifest\.xml$/.test(lower)) score = 64;
+  else if(/^build\.gradle(\.kts)?$/.test(lower)) score = 20;   // root build file rarely has the ID
+  else score = 50;                                             // other module build files
+  if(/(^|\/)(test|androidtest|sample|samples|demo|benchmark)\//i.test(p)) score -= 60;
+  return score;
+}
+
+async function scanForPackageIds(owner, repo, branch, paths, group, onProgress){
+  const buildFiles = paths
+    .filter(p => /(^|\/)build\.gradle(\.kts)?$|(^|\/)AndroidManifest\.xml$/i.test(p))
+    .map(p => ({ p, s: scoreBuildPath(p) }))
+    .sort((a, b) => b.s - a.s)
+    .slice(0, 30)
+    .map(x => x.p);
+
+  if(buildFiles.length === 0) return [];
+  onProgress?.(`Checking ${buildFiles.length} likely build file${buildFiles.length > 1 ? 's' : ''}…`);
+
+  const candidates = [];
+  const seen = new Set();
+  const CHUNK = 6;
+
+  for(let i = 0; i < buildFiles.length; i += CHUNK){
+    if(group && group.aborted) break;
+    const chunk = buildFiles.slice(i, i + CHUNK);
+    if(i > 0) onProgress?.(`Checking build files ${i + 1}–${i + chunk.length} of ${buildFiles.length}…`);
+
+    const texts = await mapPool(chunk, CHUNK, p => ghRaw(owner, repo, branch, p, group));
+    texts.forEach((text, k) => {
+      if(!text) return;
+      const path = chunk[k];
+      const id = extractPackageId(text, path);
+      if(!id) return;
+      const key = id + '|' + path;
+      if(seen.has(key)) return;
+      seen.add(key);
+      candidates.push({ id, path });
+    });
+
+    // High-confidence hit (the main app module): no need to scan the rest.
+    if(candidates.some(c => scoreBuildPath(c.path) >= 96)) break;
+  }
+
+  return candidates.sort((a, b) => scoreBuildPath(b.path) - scoreBuildPath(a.path));
+}
+
+// Looks for a human app name in the places Android projects usually keep one.
+async function detectAppName(owner, repo, branch, paths, repoName, group, onProgress){
+  const aborted = () => !!(group && group.aborted);
+
+  // 1. fastlane metadata title (the same file F-Droid/IzzyOnDroid show)
+  const localeRank = p => {
+    const loc = (p.match(/metadata\/android\/([^/]+)\/title\.txt$/i)?.[1] || '').toLowerCase();
+    if(loc === 'en-us') return 0;
+    if(loc === 'en-gb') return 1;
+    if(loc.startsWith('en')) return 2;
+    return 3;
+  };
+  const titles = paths
+    .filter(p => /(^|\/)fastlane\/metadata\/android\/[^/]+\/title\.txt$/i.test(p))
+    .sort((a, b) => localeRank(a) - localeRank(b))
+    .slice(0, 3);
+
+  if(titles.length && !aborted()){
+    onProgress?.('Looking for the app name in fastlane metadata…');
+    const texts = await mapPool(titles, 3, p => ghRaw(owner, repo, branch, p, group));
+    for(let i = 0; i < titles.length; i++){
+      const value = texts[i] && texts[i].trim().split('\n')[0].trim();
+      if(value) return { value, source: `fastlane metadata (${titles[i]})` };
+    }
+  }
+
+  // 2. res/values/strings.xml -> <string name="app_name">
+  const stringsFiles = [
+    ...paths.filter(p => /(^|\/)src\/main\/res\/values\/strings\.xml$/i.test(p)),
+    ...paths.filter(p => /(^|\/)src\/main\/res\/values-[^/]+\/strings\.xml$/i.test(p))
+  ].slice(0, 4);
+
+  if(stringsFiles.length && !aborted()){
+    onProgress?.('Looking for the app name in strings.xml…');
+    const texts = await mapPool(stringsFiles, 4, p => ghRaw(owner, repo, branch, p, group));
+    for(let i = 0; i < stringsFiles.length; i++){
+      const text = texts[i];
+      if(!text) continue;
+      const m = text.match(/<string[^>]*\bname\s*=\s*["']app_name["'][^>]*>([\s\S]*?)<\/string>/i);
+      if(m){
+        const value = decodeEntities(m[1]).replace(/\\'/g, "'").replace(/\s+/g, ' ').trim();
+        if(value && value[0] !== '@') return { value, source: `app_name in ${stringsFiles[i]}` };
+      }
+    }
+  }
+
+  // 3. literal android:label in the main manifest
+  const manifests = paths
+    .filter(p => /(^|\/)AndroidManifest\.xml$/i.test(p) && /src\/main/i.test(p))
+    .sort((a, b) => scoreBuildPath(b) - scoreBuildPath(a))
+    .slice(0, 3);
+
+  if(manifests.length && !aborted()){
+    onProgress?.('Looking for the app name in AndroidManifest.xml…');
+    const texts = await mapPool(manifests, 3, p => ghRaw(owner, repo, branch, p, group));
+    for(let i = 0; i < manifests.length; i++){
+      const text = texts[i];
+      if(!text) continue;
+      const m = text.match(/android:label\s*=\s*"([^"@][^"]*)"/);
+      if(m){
+        const value = decodeEntities(m[1]).replace(/\s+/g, ' ').trim();
+        if(value) return { value, source: `android:label in ${manifests[i]}` };
+      }
+    }
+  }
+
+  // 4. settings.gradle -> rootProject.name
+  const settingsFiles = paths
+    .filter(p => /(^|\/)settings\.gradle(\.kts)?$/i.test(p))
+    .slice(0, 2);
+
+  if(settingsFiles.length && !aborted()){
+    onProgress?.('Looking for the app name in settings.gradle…');
+    const texts = await mapPool(settingsFiles, 2, p => ghRaw(owner, repo, branch, p, group));
+    for(let i = 0; i < settingsFiles.length; i++){
+      const m = texts[i] && texts[i].match(/rootProject\.name\s*=\s*["']([^"']+)["']/);
+      if(m) return { value: m[1].trim(), source: `rootProject.name in ${settingsFiles[i]}` };
+    }
+  }
+
+  // 5. Last resort: prettify the repository name
+  return { value: titleCaseFromSlug(repoName), source: `repo name "${repoName}"` };
+}
+
+/* ---------------- rendering ---------------- */
+function selectCandidate(c){
+  $('appId').value = c.id;
+  $('appIdHint').textContent = `Detected from ${c.path}. Edit if this isn't the right module.`;
+}
+
+function renderPkgCandidates(candidates){
+  const wrap = $('pkgCandidates');
+  const list = $('pkgCandidateList');
+  list.textContent = '';
+  if(!candidates.length){ wrap.style.display = 'none'; return; }
+
+  const preferred = candidates.find(c => /^app\//i.test(c.path)) || candidates[0];
+
+  candidates.forEach(c => {
+    const row = document.createElement('label');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;font-weight:400;margin:0;background:#101216;border:1px solid var(--line);border-radius:8px;padding:8px 10px;cursor:pointer';
+
+    const radio = document.createElement('input');
+    radio.type = 'radio';
+    radio.name = 'pkgPick';
+    radio.style.cssText = 'width:auto;flex:0';
+    radio.checked = (c === preferred);
+    radio.addEventListener('change', () => selectCandidate(c));
+
+    const idSpan = document.createElement('span');
+    idSpan.style.cssText = 'font-family:ui-monospace,monospace;font-size:.85rem';
+    idSpan.textContent = c.id;
+
+    const pathSpan = document.createElement('span');
+    pathSpan.style.cssText = 'color:var(--muted);font-size:.8rem;margin-left:auto';
+    pathSpan.textContent = c.path;
+
+    row.append(radio, idSpan, pathSpan);
+    list.appendChild(row);
+  });
+
+  wrap.style.display = 'block';
+  selectCandidate(preferred);
+}
+
+function summarizeGitHub(r){
+  const bits = [];
+  bits.push(r.candidates && r.candidates.length
+    ? `${r.candidates.length} package ID candidate${r.candidates.length > 1 ? 's' : ''}`
+    : 'no package ID found — enter it manually');
+  if(!r.name) bits.push('app name not detected — enter it manually');
+  if(r.truncated) bits.push('repo tree was truncated by GitHub, some files may be missed');
+  return bits.join('; ');
+}
+
+function applyGitHubResult(r){
+  $('author').value = r.author || '';
+  $('authorHint').textContent = r.authorHint || '';
+  if(r.candidates && r.candidates.length) renderPkgCandidates(r.candidates);
+  if(r.name){
+    $('name').value = r.name;
+    $('nameHint').textContent = r.nameHint || '';
+  }
+}
+
+/* ---------------- GitHub fetch ---------------- */
+async function fetchFromGitHub(){
+  const status = $('fetchStatus');
+  const parsed = parseRepoInput($('repo').value);
+  if(!parsed){ status.textContent = 'Enter a valid GitHub repository URL first.'; return; }
+
+  const { owner, repo } = parsed;
+  const btn = $('fetchGh');
+  btn.disabled = true;
+  $('pkgCandidates').style.display = 'none';
+  $('authorHint').textContent = '';
+  $('nameHint').textContent = '';
+  status.textContent = 'Fetching repository info…';
+
+  const group = startGroup('github');
+  const cacheId = 'gh:' + `${owner}/${repo}`.toLowerCase();
+
+  try {
+    const cached = cacheGet(cacheId);
+    if(cached){
+      applyGitHubResult(cached);
+      status.textContent = `Done (from cache): ${summarizeGitHub(cached)}. Cache expires in a few minutes — press Clear then Fetch to re-scan.`;
+      return;
+    }
+
+    const info = await ghJson(`https://api.github.com/repos/${owner}/${repo}`, group);
+
+    // --- author ---
+    const ownerLogin = info.owner?.login || owner;
+    const ownerLabel = info.owner?.name || '';
+    const ownerType = info.owner?.type === 'Organization' ? 'organisation' : 'account';
+    const authorHint = (ownerLabel && ownerLabel !== ownerLogin)
+      ? `Detected from the GitHub ${ownerType} "${ownerLogin}" (display name: ${ownerLabel}). Edit if you want the display name instead.`
+      : `Detected from the GitHub ${ownerType} "${ownerLogin}".`;
+
+    const branch = info.default_branch || 'main';
+    status.textContent = 'Scanning repository tree…';
+    const tree = await ghJson(
+      `https://api.github.com/repos/${owner}/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`,
+      group
+    );
+    const paths = (tree.tree || []).filter(f => f.type === 'blob').map(f => f.path);
+    status.textContent = `Scanning tree (${paths.length.toLocaleString()} files)…`;
+
+    // --- package ID ---
+    const candidates = await scanForPackageIds(owner, repo, branch, paths, group, msg => { status.textContent = msg; });
+
+    // --- app name ---
+    const detected = await detectAppName(owner, repo, branch, paths, info.name || repo, group, msg => { status.textContent = msg; });
+
+    const result = {
+      author: ownerLogin,
+      authorHint,
+      candidates,
+      name: detected.value || '',
+      nameHint: detected.value ? `Detected from ${detected.source} — rename if that isn't the real app name.` : '',
+      truncated: !!tree.truncated
+    };
+
+    applyGitHubResult(result);
+    cacheSet(cacheId, result);
+    status.textContent = `Done: ${summarizeGitHub(result)}.`;
+  } catch(err){
+    if(group.aborted) status.textContent = 'Fetch cancelled.';
+    else status.textContent = err.message || 'Could not fetch from GitHub.';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* ---------- IzzyOnDroid metadata lookup ---------- */
+
+// IzzyOnDroid maintains authoritative per-package YAML files in its public
+// repodata repository. These include AuthorName and Name/AutoName, so we do
+// not need to scrape the app page or depend on public CORS proxy services.
+function parseYamlScalar(yaml, key){
+  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const m = yaml.match(new RegExp('^' + escaped + ':[ \\t]*(.*)$', 'm'));
+  if(!m) return '';
+  const rawValue = m[1].trim();
+
+  // Block scalars ("> folded", "| literal"), with optional chomping indicator.
+  if(/^[>|][+-]?$/.test(rawValue)){
+    const lines = yaml.slice(m.index + m[0].length).split('\n').slice(1);
+    const out = [];
+    for(const line of lines){
+      if(line.trim() === ''){ out.push(''); continue; }
+      if(!/^[ \t]/.test(line)) break;
+      out.push(line.trim());
+    }
+    return (rawValue[0] === '|' ? out.join('\n') : out.join(' ')).replace(/[ \t]+/g, ' ').trim();
+  }
+
+  if(!rawValue || /^(null|~)$/i.test(rawValue)) return '';
+  if(rawValue.length > 1 && rawValue.startsWith('"') && rawValue.endsWith('"')){
+    try { return JSON.parse(rawValue); } catch { return rawValue.slice(1, -1); }
+  }
+  if(rawValue.length > 1 && rawValue.startsWith("'") && rawValue.endsWith("'")){
+    return rawValue.slice(1, -1).replace(/''/g, "'");
+  }
+  // Ignore YAML comments on unquoted scalar values.
+  return rawValue.replace(/\s+#.*$/, '').trim();
+}
+
+function fromIzzyYaml(yaml, source){
+  return {
+    name: parseYamlScalar(yaml, 'Name') || parseYamlScalar(yaml, 'AutoName'),
+    author: parseYamlScalar(yaml, 'AuthorName'),
+    source
+  };
+}
+
+async function lookupIzzyMetadata(appId, group){
+  const encodedId = encodeURIComponent(appId);
+  const branches = ['main', 'master'];
+  let lastError = null;
+
+  // 1. Raw file first — lighter than the API (no JSON + Base64 decode).
+  for(const branch of branches){
+    try {
+      const rawUrl = `https://codeberg.org/IzzyOnDroid/repodata/raw/branch/${branch}/metadata/${encodedId}.yml`;
+      const res = await timedFetch(rawUrl, 12000, undefined, group);
+      if(res.status === 404) continue;
+      if(!res.ok) throw new Error(`Could not fetch IzzyOnDroid metadata (HTTP ${res.status}).`);
+      const text = await res.text();
+      if(text.trim()) return fromIzzyYaml(text, 'IzzyOnDroid repository metadata');
+    } catch(err){
+      if(group && group.aborted) throw err;
+      lastError = err;
+    }
+  }
+
+  // 2. Forgejo contents API — returns the exact metadata file as Base64.
+  for(const branch of branches){
+    try {
+      const apiUrl = `https://codeberg.org/api/v1/repos/IzzyOnDroid/repodata/contents/metadata/${encodedId}.yml?ref=${branch}`;
+      const res = await timedFetch(apiUrl, 12000, { headers: { Accept: 'application/json' } }, group);
+      if(res.status === 404) continue;
+      if(!res.ok) throw new Error(`Codeberg metadata API returned HTTP ${res.status}.`);
+      const data = await res.json();
+      if(data.type !== 'file' || !data.content) continue;
+      const binary = atob(String(data.content).replace(/\s/g, ''));
+      const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
+      return fromIzzyYaml(new TextDecoder().decode(bytes), 'IzzyOnDroid repository metadata (API)');
+    } catch(err){
+      if(group && group.aborted) throw err;
+      lastError = err;
+    }
+  }
+
+  // 3. Last resort: the public F-Droid-style index (single large JSON file).
+  try {
+    const res = await timedFetch('https://apt.izzysoft.de/fdroid/repo/index-v1.json', 20000, undefined, group);
+    if(!res.ok) throw new Error(`IzzyOnDroid index returned HTTP ${res.status}.`);
+    const index = await res.json();
+    const app = (index.apps || []).find(a => a && a.package === appId);
+    if(!app) throw new Error('This package ID is not listed in the IzzyOnDroid app index.');
+    return {
+      name: firstString(app.name, app.autoName),
+      author: firstString(app.authorName, app.author),
+      source: 'IzzyOnDroid app index'
+    };
+  } catch(err){
+    if(group && group.aborted) throw err;
+    lastError = err;
+  }
+
+  if(lastError) throw lastError;
+  throw new Error('No metadata file was found for this package ID in the IzzyOnDroid repository.');
+}
+
+async function fetchFromIzzy(){
+  const status = $('izzyStatus');
+  const parsed = parseIzzyInput($('izzyUrl').value);
+  if(!parsed){ status.textContent = 'Enter a valid IzzyOnDroid app page URL first.'; return; }
+
+  const btn = $('fetchIzzy');
+  btn.disabled = true;
+  $('appId').value = parsed.appId;
+  $('appIdHint').textContent = 'Read directly from the IzzyOnDroid page URL.';
+  status.textContent = 'Looking up the package in IzzyOnDroid repository metadata…';
+
+  const group = startGroup('izzy');
+
+  try {
+    const found = await lookupIzzyMetadata(parsed.appId, group);
+    let applied = 0;
+
+    if(found.author){
+      $('author').value = found.author;
+      $('authorHint').textContent = `Fetched from ${found.source}. Edit if it isn't the developer/distributor.`;
+      applied++;
+    }
+    if(found.name){
+      $('name').value = found.name;
+      $('nameHint').textContent = `Fetched from ${found.source} — rename if that isn't the real app name.`;
+      applied++;
+    }
+
+    if(applied === 0){
+      status.textContent = 'The package ID was found, but the metadata has no AuthorName or Name/AutoName value. Enter the missing details manually.';
+    } else if(applied === 1){
+      status.textContent = 'Partially filled: only one field could be detected. Complete the rest manually.';
+    } else {
+      status.textContent = 'Done. Author and app name filled in — review them before generating links.';
+    }
+  } catch(err){
+    if(group.aborted) status.textContent = 'Fetch cancelled.';
+    else status.textContent = err.message || 'Could not fetch from IzzyOnDroid.';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// IzzyOnDroid gives only the package ID from its URL — no author/name scraping
+// (its HTML page isn't fetchable cross-origin, and isn't needed since the ID
+// alone is enough to build a correct IzzyOnDroid-sourced Obtainium link).
+$('izzyUrl').addEventListener('input', () => {
+  const parsed = parseIzzyInput($('izzyUrl').value);
+  if(parsed){
+    $('appId').value = parsed.appId;
+    $('appIdHint').textContent = 'Filled from the IzzyOnDroid page URL.';
+  } else if($('izzyUrl').value.trim()){
+    $('appIdHint').textContent = "Couldn't read a package ID from that URL — check it's an IzzyOnDroid app page ending in /apk/{id}.";
+  }
+});
+
+$('fetchGh').addEventListener('click', fetchFromGitHub);
+$('fetchIzzy').addEventListener('click', fetchFromIzzy);
+
+/* ==========================================
+   F-DROID SUPPORT
+   ========================================== */
+
+// F-Droid does not expose a compact, CORS-friendly JSON endpoint that carries
+// per-app name/author. The authoritative source is the fdroiddata repo YAML
+// (same schema as Izzy — reuses parseYamlScalar above). The repo is mirrored
+// on GitHub and GitLab; GitHub raw is tried first because it reliably sends
+// CORS headers, with GitLab raw as fallback.
+async function lookupFdroidMetadata(appId, group, onProgress){
+  const encodedId = encodeURIComponent(appId);
+  const yamlUrls = [
+    `https://raw.githubusercontent.com/f-droid/fdroiddata/master/metadata/${encodedId}.yml`,
+    `https://gitlab.com/fdroid/fdroiddata/-/raw/master/metadata/${encodedId}.yml`,
+    `https://raw.githubusercontent.com/f-droid/fdroiddata/main/metadata/${encodedId}.yml`,
+    `https://gitlab.com/fdroid/fdroiddata/-/raw/main/metadata/${encodedId}.yml`
+  ];
+
+  onProgress?.("Fetching app metadata from F-Droid's fdroiddata repository…");
+
+  let yaml = '';
+  let lastError = null;
+  let allWere404 = true;
+
+  for(const u of yamlUrls){
+    if(group && group.aborted) break;
+    try {
+      const res = await timedFetch(u, 15000, undefined, group);
+      if(res.status === 404) continue;
+      allWere404 = false;
+      if(!res.ok){
+        lastError = new Error(`Could not fetch F-Droid metadata (HTTP ${res.status}).`);
+        continue;
+      }
+      const text = await res.text();
+      if(text.trim()){ yaml = text; break; }
+    } catch(err){
+      if(group && group.aborted) throw err;
+      lastError = err;
+      allWere404 = false;
+    }
+  }
+
+  if(!yaml){
+    if(allWere404){
+      throw new Error("This package ID was not found in F-Droid's fdroiddata repository. Double-check the ID, or enter the details manually.");
+    }
+    if(lastError) throw lastError;
+    throw new Error("Could not reach F-Droid's metadata repository. Fill in the fields manually for now.");
+  }
+
+  return {
+    name: parseYamlScalar(yaml, 'Name') || parseYamlScalar(yaml, 'AutoName'),
+    author: parseYamlScalar(yaml, 'AuthorName'),
+    source: 'F-Droid fdroiddata metadata'
+  };
+}
+
+function applyFdroidResult(r){
+  if(r.author){
+    $('author').value = r.author;
+    $('authorHint').textContent = `Fetched from ${r.source || 'F-Droid metadata'}. Edit if it isn't the developer/distributor.`;
+  }
+  if(r.name){
+    $('name').value = r.name;
+    $('nameHint').textContent = `Fetched from ${r.source || 'F-Droid metadata'} — rename if that isn't the real app name.`;
+  }
+}
+
+async function fetchFromFdroid(){
+  const status = $('fdroidStatus');
+  const parsed = parseFdroidInput($('fdroidUrl').value);
+  if(!parsed){
+    status.textContent = 'Enter a valid F-Droid package URL or package ID first.';
+    return;
+  }
+
+  const btn = $('fetchFdroid');
+  btn.disabled = true;
+  $('appId').value = parsed.appId;
+  $('appIdHint').textContent = 'Read from the F-Droid package URL/ID.';
+  status.textContent = 'Looking up the package in F-Droid metadata…';
+
+  const group = startGroup('fdroid');
+  const cacheId = 'fd:' + parsed.appId.toLowerCase();
+
+  try {
+    const cached = cacheGet(cacheId);
+    if(cached){
+      applyFdroidResult(cached);
+      status.textContent = (cached.name || cached.author)
+        ? 'Done (from cache). Review the details before generating links.'
+        : 'Done (from cache). F-Droid metadata has no name/author for this app — enter them manually.';
+      return;
+    }
+
+    const found = await lookupFdroidMetadata(parsed.appId, group, msg => { status.textContent = msg; });
+    applyFdroidResult(found);
+    cacheSet(cacheId, found);
+
+    const gotAny = !!(found.name || found.author);
+    if(!gotAny){
+      status.textContent = 'Package found, but the metadata has no Name/AutoName or AuthorName value. Enter the missing details manually.';
+    } else if(!found.name || !found.author){
+      status.textContent = 'Package found on F-Droid. Only one of name/author could be detected — complete the rest manually.';
+    } else {
+      status.textContent = 'Done. Author and app name filled in — review them before generating links.';
+    }
+  } catch(err){
+    if(group.aborted) status.textContent = 'Fetch cancelled.';
+    else status.textContent = err.message || 'Could not fetch from F-Droid.';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// As the user types, keep the package ID in sync when we can parse the input
+// (accepts both a full F-Droid URL and a bare package ID).
+$('fdroidUrl').addEventListener('input', () => {
+  const parsed = parseFdroidInput($('fdroidUrl').value);
+  if(parsed){
+    $('appId').value = parsed.appId;
+    $('appIdHint').textContent = 'Filled from the F-Droid package URL/ID.';
+  } else if($('fdroidUrl').value.trim()){
+    $('appIdHint').textContent = 'Enter an F-Droid package URL (…/packages/{id}/) or a raw package ID like com.example.app.';
+  }
+});
+
+$('fetchFdroid').addEventListener('click', fetchFromFdroid);
+
+/* ==========================================
+   AUTO-FINDER — paste any URL, detect source, fetch
+   ========================================== */
+
+const SRC_DETECTORS = [
+  { key: 'github', name: 'GitHub',       parse: parseRepoInput },
+  { key: 'izzy',   name: 'IzzyOnDroid',  parse: parseIzzyInput },
+  { key: 'fdroid', name: 'F-Droid',      parse: parseFdroidInput }
+];
+
+// Returns { key, name, parsed } when `raw` is a URL that belongs to a known
+// source. Bare package IDs are intentionally not accepted here — the auto-
+// finder is URL-only so it never guesses which repository the user meant.
+function detectSourceFromAny(raw){
+  const s = String(raw || '').trim();
+  if(!s) return null;
+  try { new URL(normalizeRawUrl(s)); } catch { return null; } // require a URL
+  for(const d of SRC_DETECTORS){
+    const parsed = d.parse(s);
+    if(parsed) return { key: d.key, name: d.name, parsed };
+  }
+  return null;
+}
+
+// Copy the detected URL into the matching source-specific field and switch
+// the tab. Package ID is filled immediately for Izzy/F-Droid (GitHub needs
+// the repo scan to discover it).
+function syncFromDetected(detected){
+  if(detected.key === 'github'){
+    $('repo').value = `https://github.com/${detected.parsed.owner}/${detected.parsed.repo}`;
+  } else if(detected.key === 'izzy'){
+    $('izzyUrl').value = detected.parsed.cleanUrl;
+    $('appId').value = detected.parsed.appId;
+    $('appIdHint').textContent = 'Filled from the IzzyOnDroid page URL.';
+  } else if(detected.key === 'fdroid'){
+    $('fdroidUrl').value = detected.parsed.cleanUrl;
+    $('appId').value = detected.parsed.appId;
+    $('appIdHint').textContent = 'Filled from the F-Droid package URL/ID.';
+  }
+  setActiveSource(detected.key);
+}
+
+function triggerFetchFor(key){
+  if(key === 'github') return fetchFromGitHub();
+  if(key === 'izzy')   return fetchFromIzzy();
+  if(key === 'fdroid') return fetchFromFdroid();
+}
+
+const DEFAULT_ANY_HINT = 'Detects the source automatically, switches to the right tab, and fetches the details.';
+let lastAutoKey = '';       // dedupe: only re-fetch when the *parsed* target changes
+let anyUrlTimer = null;
+
+function setAnyHint(text, color){
+  const h = $('anyUrlHint');
+  h.textContent = text;
+  h.style.color = color || '';
+}
+
+function runAutoFinder(){
+  const raw = $('anyUrl').value.trim();
+  if(!raw){
+    lastAutoKey = ''; // allow re-fetching the same URL after clearing
+    setAnyHint(DEFAULT_ANY_HINT, '');
+    return;
+  }
+
+  const detected = detectSourceFromAny(raw);
+  if(!detected){
+    setAnyHint("Couldn't recognise that URL — it should be a GitHub repository, an IzzyOnDroid app page, or an F-Droid package page.", 'var(--muted)');
+    return;
+  }
+
+  // Dedupe on the *parsed* target so appending /tree/main etc. doesn't re-fetch.
+  const autoKey = detected.key + ':' + JSON.stringify(detected.parsed).toLowerCase();
+  syncFromDetected(detected);
+  setAnyHint(`Detected ${detected.name} — fetching details…`, 'var(--accent2)');
+
+  if(autoKey === lastAutoKey) return;
+  lastAutoKey = autoKey;
+  triggerFetchFor(detected.key);
+}
+
+$('anyUrl').addEventListener('input', () => {
+  clearTimeout(anyUrlTimer);
+  anyUrlTimer = setTimeout(runAutoFinder, 650);
+});
+
+// Paste lands after `paste` but before `input`. Give the value a tick to
+// arrive, then run immediately — the input handler's dedupe prevents a
+// second fetch 650 ms later.
+$('anyUrl').addEventListener('paste', () => {
+  setTimeout(runAutoFinder, 30);
+});
+
+// Enter in the quick-paste box should trigger detection, not submit the form.
+$('anyUrl').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter'){
+    e.preventDefault();
+    clearTimeout(anyUrlTimer);
+    runAutoFinder();
+  }
+});
+
+/* ---------------- link generation (single-encode pipeline) ---------------- */
+
+// Build the raw payload object. Field values go in completely raw — never
+// encode id / url / author / name here. overrideSource is only added for
+// sources where Obtainium can't infer it from the URL (IzzyOnDroid, F-Droid);
+// GitHub URLs are auto-detected, so we deliberately omit it.
+function buildPayload({ id, url, author, name, overrideSource }){
+  const obj = { id, url, author, name };
+  if(overrideSource) obj.overrideSource = overrideSource;
+  return obj;
+}
+
+// Serialize once, encode once. This is the ONLY encode pass for the payload.
+function encodePayloadOnce(obj){
+  return encodeURIComponent(JSON.stringify(obj));
+}
+
+// Assemble the two link forms by concatenation only — never re-encode.
+function buildLinkPair(obj){
+  const enc   = encodePayloadOnce(obj); // %7B%22id%22%3A…%7D
+  const deep  = DEEP_PREFIX + enc;      // obtainium://app/%7B…%7D  (prefix literal)
+  const share = REDIRECT_BASE + deep;   // ?r=obtainium://app/%7B…%7D (deep link literal)
+  return { enc, deep, share };
+}
+
+function buildLinks(event){
+  event.preventDefault();
+  const id = $('appId').value.trim();
+  const author = $('author').value.trim();
+  const name = $('name').value.trim();
+
+  if(!/^[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+$/.test(id)){
+    alert('Enter a valid Android package ID, such as com.example.app.'); return;
+  }
+  if(!author || !name){ alert('Enter both author and app name.'); return; }
+
+  // Build a RAW url string first — do not encode here.
+  let url, overrideSource;
+  if(activeSource === 'github'){
+    const parsed = parseRepoInput($('repo').value.trim());
+    if(!parsed){ alert('Enter a GitHub repository URL like https://github.com/owner/repository'); return; }
+    url = `https://github.com/${parsed.owner}/${parsed.repo}`; // raw https://…
+    overrideSource = undefined;                                // GitHub is auto-detected
+  } else if(activeSource === 'izzy'){
+    const parsed = parseIzzyInput($('izzyUrl').value.trim());
+    if(!parsed){ alert('Enter a valid IzzyOnDroid app page URL, such as https://apt.izzysoft.de/fdroid/index/apk/com.example.app'); return; }
+    url = parsed.cleanUrl;              // raw https://…
+    overrideSource = 'IzzyOnDroid';     // needed so Obtainium doesn't treat it as plain HTML
+  } else { // fdroid
+    const parsed = parseFdroidInput($('fdroidUrl').value.trim());
+    if(!parsed){ alert('Enter an F-Droid package URL or package ID, such as https://f-droid.org/packages/com.example.app/ or com.example.app'); return; }
+    url = `https://f-droid.org/packages/${parsed.appId}/`; // raw https://…
+    overrideSource = 'F-Droid';                           // ensure F-Droid routing
+  }
+
+  const payload = buildPayload({ id, url, author, name, overrideSource });
+  const { enc, deep, share } = buildLinkPair(payload);
+
+  // Console-only self-check: guarantees the payload is single-encoded so
+  // future regressions are caught immediately without touching the UI.
+  try {
+    if(enc.includes('%25')) throw new Error('payload contains %25 (over-encoded)');
+    const roundTrip = JSON.parse(decodeURIComponent(enc));
+    if(roundTrip.url !== url) throw new Error('url field was mutated during encoding');
+    if(roundTrip.id !== id) throw new Error('id field was mutated during encoding');
+    if(share !== REDIRECT_BASE + deep) throw new Error('share link was re-encoded');
+    if(deep !== DEEP_PREFIX + enc) throw new Error('deep link was re-encoded');
+    if(overrideSource && roundTrip.overrideSource !== overrideSource) throw new Error('overrideSource was mutated');
+  } catch(e){
+    console.error('Obtainium link self-check failed:', e);
+    $('status').textContent = 'Internal check failed — the generated link may be malformed. Please report this bug.';
+  }
+
+  $('deepOutput').value = deep;
+  $('httpsOutput').value = share;
+  $('openHttps').href = share;
+  $('result').classList.add('show');
+  $('status').textContent = 'Links generated. Review the details before sharing.';
+}
+
+async function copyFrom(id, message){
+  const value = $(id).value;
+  try { await navigator.clipboard.writeText(value); $('status').textContent = message; }
+  catch { $(id).focus(); $(id).select(); $('status').textContent = 'Clipboard access unavailable. Select and copy the link manually.'; }
+}
+
+$('converter').addEventListener('submit', buildLinks);
+$('copyHttps').addEventListener('click', () => copyFrom('httpsOutput','Shareable link copied.'));
+$('copyDeep').addEventListener('click', () => copyFrom('deepOutput','Obtainium deep link copied.'));
+$('clear').addEventListener('click', () => {
+  abortAll();
+  $('converter').reset(); $('result').classList.remove('show'); $('status').textContent='';
+  $('fetchStatus').textContent=''; $('izzyStatus').textContent=''; $('fdroidStatus').textContent='';
+  $('pkgCandidates').style.display='none';
+  $('authorHint').textContent=''; $('nameHint').textContent='';
+  $('appIdHint').textContent="Find it in Android App info or the app's build configuration. Do not use the app's display name.";
+  $('izzyHint').textContent="Paste the app's IzzyOnDroid page URL. The package ID is extracted from the URL; app name and author are looked up in IzzyOnDroid's public repository metadata.";
+  $('fdroidHint').textContent="Paste the app's F-Droid package URL (e.g. https://f-droid.org/packages/com.example.app/) or just its package ID. The app name and author are read from F-Droid's public fdroiddata metadata.";
+  setAnyHint(DEFAULT_ANY_HINT, '');
+  lastAutoKey = '';
+  $('fetchGh').disabled=false; $('fetchIzzy').disabled=false; $('fetchFdroid').disabled=false;
+  setActiveSource('github');
+});
+
+// Load-time self-check: exercises the full pipeline against a known-good
+// sample (and the F-Droid override branch) and logs to the console if
+// anything regresses. No UI impact.
+(function verifyLinkPipeline(){
+  try {
+    const sample = { id: 'com.example.app', url: 'https://github.com/owner/repo', author: 'Owner', name: 'Example' };
+    const { enc, deep, share } = buildLinkPair(sample);
+    if(enc.includes('%25')) throw new Error('payload is over-encoded (%25 present)');
+    const parsed = JSON.parse(decodeURIComponent(enc));
+    if(parsed.url !== sample.url) throw new Error('url is not raw after decode');
+    if(!parsed.url.startsWith('https://')) throw new Error('url lost its scheme');
+    if(share !== REDIRECT_BASE + deep) throw new Error('share is not a pure concatenation of deep');
+    if(deep !== DEEP_PREFIX + enc) throw new Error('deep is not a pure concatenation of enc');
+
+    // F-Droid branch: overrideSource must survive the encode round-trip.
+    const fd = buildPayload({
+      id: 'com.example.app',
+      url: 'https://f-droid.org/packages/com.example.app/',
+      author: 'Author',
+      name: 'App',
+      overrideSource: 'F-Droid'
+    });
+    const fdPair = buildLinkPair(fd);
+    const fdRT = JSON.parse(decodeURIComponent(fdPair.enc));
+    if(fdRT.overrideSource !== 'F-Droid') throw new Error('F-Droid overrideSource lost');
+    if(fdPair.enc.includes('%25')) throw new Error('F-Droid payload is over-encoded');
+
+    // Auto-finder sanity: known-good URLs map to the expected sources.
+    const gh = detectSourceFromAny('https://github.com/owner/repo');
+    const iz = detectSourceFromAny('https://apt.izzysoft.de/fdroid/index/apk/com.example.app');
+    const fd2 = detectSourceFromAny('https://f-droid.org/en/packages/com.example.app/');
+    if(!gh || gh.key !== 'github') throw new Error('auto-finder did not detect GitHub');
+    if(!iz || iz.key !== 'izzy') throw new Error('auto-finder did not detect IzzyOnDroid');
+    if(!fd2 || fd2.key !== 'fdroid') throw new Error('auto-finder did not detect F-Droid');
+  } catch(e){
+    console.error('Obtainium link pipeline self-check failed:', e);
+  }
+})();
+</script>
+</body>
+</html>
