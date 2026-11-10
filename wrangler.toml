@@ -1,0 +1,11 @@
+# Cloudflare Pages project config: Obtainium Link Converter
+#
+# Local development:
+#   wrangler pages dev .
+#
+# Production deploy:
+#   wrangler pages deploy . --project-name obtainium
+#
+# See: https://developers.cloudflare.com/pages/platform/wrangler/
+
+compatibility_date = "2026-10-11"

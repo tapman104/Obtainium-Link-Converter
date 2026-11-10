@@ -1,0 +1,3 @@
+# Cloudflare Pages redirects
+# Serve the converter at the root URL without renaming auto.html.
+/  /auto.html  200
