@@ -53,3 +53,10 @@ Then open `http://localhost:5173`.
 ## Analytics
 
 No analytics are included. If you want to add them later, enable **Cloudflare Web Analytics** in the Pages dashboard — it's cookie-free and requires no code changes.
+
+## Support
+
+This tool is free and open source. If you find it useful, consider supporting development:
+
+- [Buy me a coffee](https://buymeacoffee.com/tapman)
+- [GitHub Sponsors](https://github.com/sponsors/tapman104/)
